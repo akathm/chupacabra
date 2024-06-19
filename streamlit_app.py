@@ -3,7 +3,6 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import requests
-import time
 
 st.set_page_config(page_title='KYC Lookup Tool', page_icon='🗝️')
 st.title('🗝️ KYC Lookup Tool')
@@ -13,38 +12,48 @@ def fetch_inquiries(api_key):
     base_url = "https://app.withpersona.com/api/v1/inquiries"
     headers = {"Authorization": f"Bearer {api_key}"}
     params = {"page[limit]": 100}
-    max_retries = 3  # Maximum number of retries
-    retries = 0
 
-    while retries < max_retries:
+    while True:
         response = requests.get(base_url, headers=headers, params=params)
-        if response.status_code == 200:
-            response_data = response.json()
-            
-            if 'data' in response_data:
-                filtered_inquiries = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'created']
-                inquiries.extend(filtered_inquiries)
-            if 'links' in response_data and 'next' in response_data['links']:
-                next_page_url = response_data['links']['next']
-                params = dict([param.split('=') for param in next_page_url.split('?')[1].split('&')])
-            else:
-                break
+        response_data = response.json()
+        
+        if 'data' in response_data:
+            filtered_inquiries = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'created']
+            inquiries.extend(filtered_inquiries)
+        if 'links' in response_data and 'next' in response_data['links']:
+            next_page_url = response_data['links']['next']
+            params = dict([param.split('=') for param in next_page_url.split('?')[1].split('&')])
         else:
-            retries += 1
-            if retries < max_retries:
-                st.warning(f"Error fetching inquiries (Status Code: {response.status_code}). Retrying in 5 seconds...")
-                time.sleep(5)
-            else:
-                st.error(f"Error fetching inquiries: {response.status_code}")
+            break
 
     return inquiries
 
+def fetch_cases(api_key):
+    cases = []
+    base_url = "https://app.withpersona.com/api/v1/cases"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    params = {"page[limit]": 100}
 
-def process_inquiries(inquiries):
+    while True:
+        response = requests.get(base_url, headers=headers, params=params)
+        response_data = response.json()
+        
+        if 'data' in response_data:
+            filtered_cases = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'open']
+            inquiries.extend(filtered_cases)
+        if 'links' in response_data and 'next' in response_data['links']:
+            next_page_url = response_data['links']['next']
+            params = dict([param.split('=') for param in next_page_url.split('?')[1].split('&')])
+        else:
+            break
+
+    return cases
+
+def process_data(data):
     records = []
-    for inquiry in inquiries:
-        inquiry_id = inquiry['id']
-        attributes = inquiry['attributes']
+    for item in data['data']:
+        inquiry_id = item['id']
+        attributes = item['attributes']
         name_first = attributes.get('name-first', '') or ''
         name_middle = attributes.get('name-middle', '') or ''
         name_last = attributes.get('name-last', '') or ''
@@ -65,12 +74,13 @@ def process_inquiries(inquiries):
     return pd.DataFrame(records)
 
 def main():
+    st.title('KYC Individuals Table')
     api_key = st.secrets["persona"]["api_key"]
     try:
-        inquiries = fetch_inquiries(api_key)
-     #   cases = fetch_cases(api_key)
-        inquiries_df = process_inquiries(inquiries)
-        st.dataframe(inquiries_df)
+        data = fetch_inquiries(api_key)
+        data = fetch_cases(api_key)
+        df = process_data(data)
+        st.dataframe(df)
     except Exception as e:
         st.error(f"Error fetching data: {e}")
 
