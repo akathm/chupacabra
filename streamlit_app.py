@@ -7,14 +7,26 @@ import requests
 st.set_page_config(page_title='KYC Lookup Tool', page_icon='🗝️')
 st.title('🗝️ KYC Lookup Tool')
 
-def fetch_persona_data(api_key):
-    url = 'https://app.withpersona.com/api/v1/inquiries'
-    headers = {
-        'Authorization': f'Bearer {api_key}'
-    }
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json()
+def fetch_inquiries(api_key):
+    inquiries = []
+    base_url = "https://app.withpersona.com/api/v1/inquiries"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    params = {"page[limit]": 100}
+
+    while True:
+        response = requests.get(base_url, headers=headers, params=params)
+        response_data = response.json()
+        
+        if 'data' in response_data:
+            filtered_inquiries = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'created']
+            inquiries.extend(filtered_inquiries)
+        if 'links' in response_data and 'next' in response_data['links']:
+            next_page_url = response_data['links']['next']
+            params = dict([param.split('=') for param in next_page_url.split('?')[1].split('&')])
+        else:
+            break
+
+    return inquiries
 
 def process_data(data):
     records = []
