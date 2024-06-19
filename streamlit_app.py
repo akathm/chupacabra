@@ -7,6 +7,7 @@ import requests
 st.set_page_config(page_title='KYC Lookup Tool', page_icon='🗝️')
 st.title('🗝️ KYC Lookup Tool')
 
+
 def fetch_inquiries(api_key):
     inquiries = []
     base_url = "https://app.withpersona.com/api/v1/inquiries"
@@ -15,8 +16,12 @@ def fetch_inquiries(api_key):
 
     while True:
         response = requests.get(base_url, headers=headers, params=params)
-        response_data = response.json()
+        if response.status_code != 200:
+            st.error(f"Error fetching inquiries: {response.status_code}")
+            return []
         
+        response_data = response.json()
+
         if 'data' in response_data:
             filtered_inquiries = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'created']
             inquiries.extend(filtered_inquiries)
@@ -36,11 +41,15 @@ def fetch_cases(api_key):
 
     while True:
         response = requests.get(base_url, headers=headers, params=params)
-        response_data = response.json()
+        if response.status_code != 200:
+            st.error(f"Error fetching cases: {response.status_code}")
+            return []
         
+        response_data = response.json()
+
         if 'data' in response_data:
-            filtered_cases = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'open']
-            inquiries.extend(filtered_cases)
+            filtered_cases = [case for case in response_data['data'] if case['attributes']['status'] != 'open']
+            cases.extend(filtered_cases)
         if 'links' in response_data and 'next' in response_data['links']:
             next_page_url = response_data['links']['next']
             params = dict([param.split('=') for param in next_page_url.split('?')[1].split('&')])
@@ -49,11 +58,11 @@ def fetch_cases(api_key):
 
     return cases
 
-def process_data(data):
+def process_inquiries(inquiries):
     records = []
-    for item in data['data']:
-        inquiry_id = item['id']
-        attributes = item['attributes']
+    for inquiry in inquiries:
+        inquiry_id = inquiry['id']
+        attributes = inquiry['attributes']
         name_first = attributes.get('name-first', '') or ''
         name_middle = attributes.get('name-middle', '') or ''
         name_last = attributes.get('name-last', '') or ''
@@ -74,13 +83,12 @@ def process_data(data):
     return pd.DataFrame(records)
 
 def main():
-    st.title('KYC Individuals Table')
     api_key = st.secrets["persona"]["api_key"]
     try:
-        data = fetch_inquiries(api_key)
-        data = fetch_cases(api_key)
-        df = process_data(data)
-        st.dataframe(df)
+        inquiries = fetch_inquiries(api_key)
+        cases = fetch_cases(api_key)
+        inquiries_df = process_inquiries(inquiries)
+        st.dataframe(inquiries_df)
     except Exception as e:
         st.error(f"Error fetching data: {e}")
 
