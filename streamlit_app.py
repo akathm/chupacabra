@@ -3,11 +3,13 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import requests
+from retry import retry
 
 st.set_page_config(page_title='KYC Lookup Tool', page_icon='🗝️')
 st.title('🗝️ KYC Lookup Tool')
 
 
+@retry(exceptions=requests.HTTPError, tries=3, delay=2, backoff=2)
 def fetch_inquiries(api_key):
     inquiries = []
     base_url = "https://app.withpersona.com/api/v1/inquiries"
@@ -16,12 +18,9 @@ def fetch_inquiries(api_key):
 
     while True:
         response = requests.get(base_url, headers=headers, params=params)
-        if response.status_code != 200:
-            st.error(f"Error fetching inquiries: {response.status_code}")
-            return []
-        
+        response.raise_for_status()  # Raise HTTPError for non-200 status codes
         response_data = response.json()
-
+        
         if 'data' in response_data:
             filtered_inquiries = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'created']
             inquiries.extend(filtered_inquiries)
