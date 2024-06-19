@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
 
 
-"""
+_ = """
 
 with st.expander('About this app'):
   st.markdown('**What can this app do?**')
