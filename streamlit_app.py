@@ -3,32 +3,39 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import requests
-from retry import retry
+import time
 
 st.set_page_config(page_title='KYC Lookup Tool', page_icon='🗝️')
 st.title('🗝️ KYC Lookup Tool')
 
-
-@retry(exceptions=requests.HTTPError, tries=3, delay=2, backoff=2)
 def fetch_inquiries(api_key):
     inquiries = []
     base_url = "https://app.withpersona.com/api/v1/inquiries"
     headers = {"Authorization": f"Bearer {api_key}"}
     params = {"page[limit]": 100}
+    max_retries = 3  # Maximum number of retries
+    retries = 0
 
-    while True:
+    while retries < max_retries:
         response = requests.get(base_url, headers=headers, params=params)
-        response.raise_for_status()  # Raise HTTPError for non-200 status codes
-        response_data = response.json()
-        
-        if 'data' in response_data:
-            filtered_inquiries = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'created']
-            inquiries.extend(filtered_inquiries)
-        if 'links' in response_data and 'next' in response_data['links']:
-            next_page_url = response_data['links']['next']
-            params = dict([param.split('=') for param in next_page_url.split('?')[1].split('&')])
+        if response.status_code == 200:
+            response_data = response.json()
+            
+            if 'data' in response_data:
+                filtered_inquiries = [inquiry for inquiry in response_data['data'] if inquiry['attributes']['status'] != 'created']
+                inquiries.extend(filtered_inquiries)
+            if 'links' in response_data and 'next' in response_data['links']:
+                next_page_url = response_data['links']['next']
+                params = dict([param.split('=') for param in next_page_url.split('?')[1].split('&')])
+            else:
+                break
         else:
-            break
+            retries += 1
+            if retries < max_retries:
+                st.warning(f"Error fetching inquiries (Status Code: {response.status_code}). Retrying in 5 seconds...")
+                time.sleep(5)
+            else:
+                st.error(f"Error fetching inquiries: {response.status_code}")
 
     return inquiries
 
